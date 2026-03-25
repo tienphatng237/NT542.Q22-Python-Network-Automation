@@ -1,6 +1,12 @@
 import requests
 
-from gns3_topology.settings import ETHERNET_SWITCH_SYMBOL, GNS3_SERVER, PASSWORD, USERNAME
+from gns3_topology.settings import (
+    ETHERNET_SWITCH_SYMBOL,
+    GNS3_SERVER,
+    PASSWORD,
+    USERNAME,
+    VPCS_SYMBOL,
+)
 
 
 def request(method, url, **kwargs):
@@ -36,17 +42,15 @@ def list_projects():
     return request("GET", "/v2/projects")
 
 
-def build_available_project_name(base_name):
-    existing_names = {project.get("name") for project in list_projects()}
-    if base_name not in existing_names:
-        return base_name
+def find_project_by_name(project_name):
+    for project in list_projects():
+        if project.get("name") == project_name:
+            return project
+    return None
 
-    suffix = 2
-    while True:
-        candidate = f"{base_name}-{suffix}"
-        if candidate not in existing_names:
-            return candidate
-        suffix += 1
+
+def open_project(project_id):
+    return request("POST", f"/v2/projects/{project_id}/open")
 
 
 def create_project(project_name):
@@ -55,6 +59,30 @@ def create_project(project_name):
 
 def get_templates():
     return request("GET", "/v2/templates")
+
+
+def get_project_nodes(project_id):
+    return request("GET", f"/v2/projects/{project_id}/nodes")
+
+
+def get_project_links(project_id):
+    return request("GET", f"/v2/projects/{project_id}/links")
+
+
+def get_project_drawings(project_id):
+    return request("GET", f"/v2/projects/{project_id}/drawings")
+
+
+def delete_node(project_id, node_id):
+    return request("DELETE", f"/v2/projects/{project_id}/nodes/{node_id}")
+
+
+def delete_link(project_id, link_id):
+    return request("DELETE", f"/v2/projects/{project_id}/links/{link_id}")
+
+
+def delete_drawing(project_id, drawing_id):
+    return request("DELETE", f"/v2/projects/{project_id}/drawings/{drawing_id}")
 
 
 def create_node(project_id, template, name, x, y):
@@ -70,6 +98,18 @@ def create_node(project_id, template, name, x, y):
         }
         return request("POST", f"/v2/projects/{project_id}/nodes", json=payload)
 
+    if template.get("template_type") == "vpcs":
+        payload = {
+            "name": name,
+            "node_type": "vpcs",
+            "compute_id": "local",
+            "x": x,
+            "y": y,
+            "symbol": VPCS_SYMBOL,
+            "properties": {},
+        }
+        return request("POST", f"/v2/projects/{project_id}/nodes", json=payload)
+
     payload = {
         "name": name,
         "x": x,
@@ -80,6 +120,20 @@ def create_node(project_id, template, name, x, y):
         f"/v2/projects/{project_id}/templates/{template['template_id']}",
         json=payload,
     )
+
+
+def update_node(project_id, node_id, **fields):
+    return request("PUT", f"/v2/projects/{project_id}/nodes/{node_id}", json=fields)
+
+
+def create_drawing(project_id, x, y, svg, z=0):
+    payload = {
+        "x": x,
+        "y": y,
+        "z": z,
+        "svg": svg,
+    }
+    return request("POST", f"/v2/projects/{project_id}/drawings", json=payload)
 
 
 def connect_nodes(project_id, left_node_id, left_adapter, left_port, right_node_id, right_adapter, right_port):
